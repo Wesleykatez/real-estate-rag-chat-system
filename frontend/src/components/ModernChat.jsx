@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import './ModernChat.css';
+import SmartSuggestions from './SmartSuggestions';
 
 const ModernChat = ({ 
   messages, 
@@ -9,7 +10,8 @@ const ModernChat = ({
   onRoleChange,
   onClearChat,
   isSaving,
-  sessionId
+  sessionId,
+  suggestions = []
 }) => {
   const [inputMessage, setInputMessage] = useState('');
   const messagesEndRef = useRef(null);
@@ -36,6 +38,11 @@ const ModernChat = ({
       e.preventDefault();
       handleSubmit(e);
     }
+  };
+
+  const handleSuggestionClick = (suggestion) => {
+    setInputMessage(suggestion);
+    onSendMessage(suggestion);
   };
 
   const formatTime = (timestamp) => {
@@ -205,6 +212,15 @@ const ModernChat = ({
           
           <div ref={messagesEndRef} />
         </div>
+        
+        {/* Smart Suggestions */}
+        {suggestions.length > 0 && !isLoading && (
+          <SmartSuggestions
+            suggestions={suggestions}
+            onSuggestionClick={handleSuggestionClick}
+            selectedRole={selectedRole}
+          />
+        )}
       </div>
 
       {/* Input Area */}

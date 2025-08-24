@@ -105,7 +105,7 @@ const EnhancedFileUpload = ({ onFileUpload, selectedRole, onAnalysisComplete }) 
         formData.append('file', file);
         
         // Upload file to backend
-        const response = await fetch('/upload-file', {
+        const response = await fetch('http://localhost:8001/upload-file', {
           method: 'POST',
           body: formData
         });

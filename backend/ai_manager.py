@@ -19,6 +19,7 @@ from datetime import datetime
 from ai_enhancements import ConversationMemory, MessageType
 from query_understanding import QueryUnderstanding
 from response_enhancer import ResponseEnhancer
+from personality_manager import PersonalityManager
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +30,7 @@ class AIEnhancementManager:
         self.engine = create_engine(db_url)
         self.model = model
         self.response_enhancer = ResponseEnhancer(model)
+        self.personality_manager = PersonalityManager()
         
         # Cache for conversation memories
         self.memory_cache = {}
@@ -63,13 +65,14 @@ class AIEnhancementManager:
             # Get conversation context
             recent_context = memory.get_recent_context(10)
             
-            # Create enhanced prompt
+            # Create enhanced prompt with personality
             enhanced_prompt = self._create_enhanced_prompt(
                 message=message,
                 query_understanding=query_understanding,
                 user_preferences=user_preferences,
                 conversation_history=recent_context,
-                file_analysis=file_analysis
+                file_analysis=file_analysis,
+                role=role
             )
             
             # Generate base response
@@ -80,12 +83,19 @@ class AIEnhancementManager:
                 logger.error(f"Error generating response: {e}")
                 base_response = "I'm having trouble processing your request right now. Please try again in a moment."
             
-            # Enhance response
+            # Enhance response with personality
             enhanced_response = self.response_enhancer.enhance_response(
                 base_response=base_response,
                 query_understanding=query_understanding,
                 user_preferences=user_preferences,
                 conversation_history=recent_context
+            )
+            
+            # Apply role-specific personality enhancements
+            enhanced_response = self.personality_manager.enhance_response_for_role(
+                response=enhanced_response,
+                role=role,
+                query_analysis=query_understanding.__dict__
             )
             
             # Add AI response to memory
@@ -206,13 +216,14 @@ class AIEnhancementManager:
                                query_understanding: QueryUnderstanding,
                                user_preferences: Dict[str, Any],
                                conversation_history: List[Dict],
-                               file_analysis: Optional[Dict] = None) -> str:
+                               file_analysis: Optional[Dict] = None,
+                               role: str = "client") -> str:
         """Create an enhanced prompt with all context and analysis"""
         
         prompt_parts = []
         
-        # System context
-        prompt_parts.append("""
+        # Use personality manager to create role-specific prompt
+        base_prompt = f"""
 You are an expert Dubai real estate AI assistant with deep knowledge of:
 - Dubai property market trends and prices
 - Real estate regulations and legal requirements
@@ -223,7 +234,18 @@ You are an expert Dubai real estate AI assistant with deep knowledge of:
 
 You provide personalized, accurate, and helpful responses based on user preferences and conversation history.
 Always use Dubai-specific terminology and provide practical, actionable advice.
-        """)
+
+Current Query: {message}
+        """
+        
+        # Get role-specific prompt from personality manager
+        enhanced_prompt = self.personality_manager.create_role_specific_prompt(
+            role=role,
+            base_prompt=base_prompt,
+            query_analysis=query_understanding.__dict__
+        )
+        
+        return enhanced_prompt
         
         # User preferences context
         if user_preferences:
