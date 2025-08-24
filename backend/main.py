@@ -46,8 +46,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include property management router
-app.include_router(property_router)
+# Include routers
+from property_routes import router as enhanced_property_router
+app.include_router(enhanced_property_router)
+
+# Import and include auth routes
+from auth_routes import router as auth_router
+app.include_router(auth_router)
+
+# Add authentication middleware
+from auth_middleware import AuthMiddleware, get_current_user
+from models import User
+auth_middleware = AuthMiddleware()
+app.add_middleware(type(auth_middleware), dispatch=auth_middleware)
 
 # Database setup
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://admin:password123@localhost:5432/real_estate_db")
@@ -197,7 +208,7 @@ async def health_check():
         }
 
 @app.post("/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest):
+async def chat(request: ChatRequest, current_user: User = Depends(get_current_user)):
     try:
         # Handle conversation management
         conversation_id = None
