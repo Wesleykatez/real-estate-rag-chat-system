@@ -313,7 +313,8 @@ function App() {
         sender: 'ai',
         text: data.response,
         timestamp: new Date().toISOString(),
-        sources: data.sources || []
+        sources: data.sources || [],
+        suggestions: data.suggestions || []
       };
 
       const finalMessages = [...updatedMessages, aiMessage];
@@ -371,6 +372,7 @@ function App() {
             onClearChat={clearChat}
             isSaving={isSaving}
             sessionId={sessionId}
+            suggestions={messages.length > 0 ? messages[messages.length - 1].suggestions || [] : []}
           />
         );
       case 'properties':

@@ -113,6 +113,7 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     response: str
     sources: List[str] = []
+    suggestions: List[str] = []
 
 class ConversationCreate(BaseModel):
     session_id: str
@@ -191,7 +192,7 @@ async def health_check():
 @app.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest):
     try:
-        # Handle conversation management
+        # Handle conversation management with better error handling
         conversation_id = None
         if request.session_id:
             try:
@@ -205,6 +206,7 @@ async def chat(request: ChatRequest):
                     
                     if row:
                         conversation_id = row[0]
+                        print(f"Found existing conversation: {conversation_id}")
                     else:
                         # Create new conversation
                         result = conn.execute(text("""
@@ -218,8 +220,10 @@ async def chat(request: ChatRequest):
                         })
                         conversation_id = result.fetchone()[0]
                         conn.commit()
+                        print(f"Created new conversation: {conversation_id}")
             except Exception as e:
                 print(f"Conversation management error: {e}")
+                # Continue without conversation management if there's an error
 
         # Process chat request with AI enhancements
         ai_result = ai_manager.process_chat_request(
@@ -277,10 +281,22 @@ async def chat(request: ChatRequest):
                     })
                     
                     conn.commit()
+                    print(f"Messages saved to conversation {conversation_id}")
             except Exception as e:
                 print(f"Error saving messages: {e}")
+                # Continue without saving if there's an error
 
-        return ChatResponse(response=response_text, sources=sources)
+        # Get smart suggestions based on role and context
+        smart_suggestions = ai_manager.personality_manager.get_smart_suggestions(
+            role=request.role,
+            context=user_preferences
+        )
+        
+        return ChatResponse(
+            response=response_text, 
+            sources=sources,
+            suggestions=smart_suggestions
+        )
         
     except Exception as e:
         print(f"Chat error: {e}")
