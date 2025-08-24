@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
+from collections import defaultdict
 import os
 import google.generativeai as genai
 from dotenv import load_dotenv
@@ -22,6 +23,7 @@ from werkzeug.utils import secure_filename
 from property_management import router as property_router
 from enhanced_rag_service import EnhancedRAGService
 from ai_manager import AIEnhancementManager
+from enhanced_ai_manager import EnhancedAIManager
 from intelligent_processor import IntelligentDataProcessor
 from data_quality_checker import DataQualityChecker
 
@@ -95,6 +97,12 @@ rag_service = EnhancedRAGService(
 ai_manager = AIEnhancementManager(
     db_url=os.getenv("DATABASE_URL", "postgresql://admin:password123@localhost:5432/real_estate_db"),
     model=model
+)
+
+# Initialize Enhanced AI Manager
+enhanced_ai_manager = EnhancedAIManager(
+    model=model,
+    db_url=os.getenv("DATABASE_URL", "postgresql://admin:password123@localhost:5432/real_estate_db")
 )
 
 # File upload settings
@@ -221,8 +229,8 @@ async def chat(request: ChatRequest):
             except Exception as e:
                 print(f"Conversation management error: {e}")
 
-        # Process chat request with AI enhancements
-        ai_result = ai_manager.process_chat_request(
+        # Process chat request with enhanced AI manager
+        ai_result = enhanced_ai_manager.process_chat_request(
             message=request.message,
             session_id=request.session_id or str(uuid.uuid4()),
             role=request.role,
@@ -230,11 +238,12 @@ async def chat(request: ChatRequest):
         )
         
         response_text = ai_result['response']
-        query_analysis = ai_result['query_analysis']
+        analysis = ai_result['analysis']
         user_preferences = ai_result['user_preferences']
         
-        print(f"AI Enhanced Analysis - Intent: {query_analysis['intent']}, Sentiment: {query_analysis['sentiment']}")
+        print(f"AI Enhanced Analysis - Intent: {analysis['intent']}, Sentiment: {analysis['sentiment']}")
         print(f"User Preferences: {user_preferences}")
+        print(f"Milestones Detected: {ai_result.get('milestones_detected', [])}")
         
         # Extract sources (for now, using basic sources)
         sources = ["Dubai Real Estate Database", "Market Analysis Reports", "Property Listings"]
@@ -290,7 +299,7 @@ async def chat(request: ChatRequest):
 async def get_conversation_summary(session_id: str):
     """Get conversation summary and insights"""
     try:
-        summary = ai_manager.get_conversation_summary(session_id)
+        summary = enhanced_ai_manager.get_conversation_summary(session_id)
         return summary
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -299,8 +308,62 @@ async def get_conversation_summary(session_id: str):
 async def get_user_insights(session_id: str):
     """Get user insights and preferences"""
     try:
-        insights = ai_manager.get_user_insights(session_id)
+        insights = enhanced_ai_manager.get_user_insights(session_id)
         return insights
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/admin/analytics")
+async def get_admin_analytics():
+    """Get admin analytics dashboard data"""
+    try:
+        # Get comprehensive analytics from enhanced AI manager
+        analytics = {
+            'total_sessions': len(enhanced_ai_manager.user_sessions),
+            'total_messages': sum(session['message_count'] for session in enhanced_ai_manager.user_sessions.values()),
+            'role_distribution': {},
+            'recent_activity': [],
+            'milestone_summary': {},
+            'system_health': {
+                'status': 'healthy',
+                'timestamp': datetime.now().isoformat(),
+                'database': 'connected',
+                'chromadb': 'connected' if collection else 'not connected'
+            }
+        }
+        
+        # Calculate role distribution
+        role_distribution = {}
+        for session in enhanced_ai_manager.user_sessions.values():
+            role = session['role']
+            role_distribution[role] = role_distribution.get(role, 0) + 1
+        analytics['role_distribution'] = role_distribution
+        
+        # Get recent activity (last hour)
+        recent_activity = []
+        for session_id, session in enhanced_ai_manager.user_sessions.items():
+            if 'last_activity' in session:
+                time_diff = datetime.now() - session['last_activity']
+                if time_diff.total_seconds() < 3600:  # Last hour
+                    recent_activity.append({
+                        'session_id': session_id,
+                        'role': session['role'],
+                        'message_count': session['message_count'],
+                        'last_activity': session['last_activity'].isoformat(),
+                        'preferences': session.get('preferences', {}),
+                        'milestones': dict(session.get('milestones', {}))
+                    })
+        analytics['recent_activity'] = recent_activity
+        
+        # Get milestone summary across all sessions
+        milestone_summary = defaultdict(int)
+        for session in enhanced_ai_manager.user_sessions.values():
+            for milestone, count in session.get('milestones', {}).items():
+                milestone_summary[milestone] += count
+        analytics['milestone_summary'] = dict(milestone_summary)
+        
+        return analytics
+        
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

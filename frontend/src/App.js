@@ -5,6 +5,7 @@ import ModernChat from './components/ModernChat';
 import ModernPropertyManagement from './components/ModernPropertyManagement';
 import ModernFileUpload from './components/ModernFileUpload';
 import EnhancedFileUpload from './components/EnhancedFileUpload';
+import EnhancedChat from './components/EnhancedChat';
 
 const API_BASE_URL = 'http://localhost:8001';
 
@@ -243,7 +244,7 @@ function App() {
         formData.append('file', file);
         formData.append('role', selectedRole);
 
-        const response = await fetch(`${API_BASE_URL}/upload`, {
+        const response = await fetch(`${API_BASE_URL}/upload-file`, {
           method: 'POST',
           body: formData,
         });
@@ -362,15 +363,13 @@ function App() {
     switch (currentView) {
       case 'chat':
         return (
-          <ModernChat
+          <EnhancedChat
             messages={messages}
             onSendMessage={sendMessage}
             isLoading={isLoading}
             selectedRole={selectedRole}
             onRoleChange={handleRoleChange}
-            onClearChat={clearChat}
-            isSaving={isSaving}
-            sessionId={sessionId}
+            error={error}
           />
         );
       case 'properties':
